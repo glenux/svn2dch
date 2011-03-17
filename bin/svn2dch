@@ -46,6 +46,7 @@ class String
 end
 
 class Svn2Dch
+		class ValidationError < RuntimeError ; end
 
         attr_reader :opts
         # Constructor
@@ -73,8 +74,14 @@ class Svn2Dch
                         opts.on("-r", "--rev REVS", "Revision range") do |r|
                                 @revisions = r
                         end
+
+                        opts.on("-h", "--help", "Show this help") do |h|
+                                @help = h
+                        end
+
                         opts.separator ""
-                end.parse!
+                end
+				@opts.parse!
 
                 @directory = args[0] || '.'
         end
@@ -89,11 +96,11 @@ class Svn2Dch
                                         else @rev_stop
                                         end
 
-                #       @rev_start = @revisions
-                #       @rev_stop = "HEAD"
-                #end
-
                 @directory = File.expand_path @directory
+				if not ( (File.exist? @directory + "/.svn") and
+						(File.directory? @directory + "/.svn" )) then
+						raise ValidationError, "Directory %s is not a working copy !" % @directory
+				end
         end
 
         def print
@@ -126,7 +133,22 @@ class Svn2Dch
                         svn2dch.validate!
                         svn2dch.print
 
+				rescue SystemExit
+					exit 0
+
                 rescue OptionParser::ParseError => e
+					puts svn2dch.opts
+					STDERR.puts "error: %s" % e.message
+					exit 1
+
+				rescue ValidationError => e
+					STDERR.puts "error: %s" % e.message
+					exit 1
+
+				rescue Exception => e
+					STDERR.puts "error: %s" % e.message
+					STDERR.puts e.backtrace
+					exit 1
 
                 end
         end
