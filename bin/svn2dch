@@ -1,0 +1,135 @@
+#!/usr/bin/env ruby
+
+require 'svn/client'
+require 'optparse'
+
+require 'rubygems' if RUBY_VERSION < '1.9'
+
+#                                                                                                                       
+# Text-wrapping method for the String class.                                                                            
+#                                                                                                                       
+# Author:: ROLLAND, Glenn <glenn.rolland@bewan.com>                                                                     
+#                                                                                                                       
+class String
+
+	# Format current string to width columns.                                                                           
+	# It automatically adds +\n+ chars where needed.                                                                    
+	#                                                                                                                   
+	# Example:                                                                                                          
+	#                                                                                                                   
+	#   irb(main):001:0> "this is a very long string".width_format(10)                                                  
+	#   => "this is a\nvery long\nstring"                                                                               
+	#                           
+	def width_format width                                                                                              
+		len = 0                                                                                                         
+		line = []                                                                                                       
+		result = []                                                                                                     
+		self.gsub('\n',' \n ').split(/\s+/).each do |w|                                                                 
+			if w == '\n' then                                                                                           
+				len = 0                                                                                                 
+				result.push line.join(' ')                                                                              
+				line = []                                                                                               
+				next                                                                                                    
+			end                                                                                                         
+			if ( len + w.length + 1 ) > width then                                                                      
+				len = 0                                                                                                 
+				result.push line.join(' ')                                                                              
+				line = []                                                                                               
+			end                                                                                                         
+			line.push w                                                                                                 
+			len += ( w.length + 1 )                                                                                     
+		end                                                                                                             
+
+		result.push line.join(' ')                                                                                      
+		return result.join("\n")                                                                                        
+	end    
+end
+
+class Svn2Dch
+
+        attr_reader :opts
+        # Constructor
+        # -- set defaults
+        def initialize
+                @opts = nil
+                @revisions = "BASE:HEAD"
+                @rev_start = nil
+                @rev_stop = nil
+                @verbose = false
+                @directory = nil
+        end
+
+        # Parse command line parameters
+        def parse_command_line args
+                @opts = OptionParser.new do |opts|
+                        opts.banner = "Usage: #{$0} [options]"
+                        opts.separator ""
+                        opts.separator "Options"
+
+                        opts.on("-v", "--[no-]verbose", "Run verbosely") do |v|
+                                @verbose = v
+                        end
+
+                        opts.on("-r", "--rev REVS", "Revision range") do |r|
+                                @revisions = r
+                        end
+                        opts.separator ""
+                end.parse!
+
+                @directory = args[0] || '.'
+        end
+
+        def validate!
+                @rev_start, @rev_stop = @revisions.split(/:/)
+                @rev_start = if @rev_start.to_i > 0 then @rev_start.to_i
+                                         else @rev_start
+                                         end
+
+                @rev_stop = if @rev_stop.to_i > 0 then @rev_stop.to_i
+                                        else @rev_stop
+                                        end
+
+                #       @rev_start = @revisions
+                #       @rev_stop = "HEAD"
+                #end
+
+                @directory = File.expand_path @directory
+        end
+
+        def print
+                STDERR.puts "Directory : %s" % @directory
+                STDERR.puts "Revisions : %s - %s" % [@rev_start, @rev_stop]
+
+                ctx = ::Svn::Client::Context.new
+                ctx.add_simple_provider
+                ctx.auth_baton[::Svn::Core::AUTH_PARAM_CONFIG_DIR] = "#{ENV['HOME']}/.subversion"
+
+                ctx_limit = 0
+                ctx_discover = false
+                ctx_strict = true
+                ctx_peg_rev = 0
+
+                ctx.log(@directory, @rev_start, @rev_stop, ctx_limit, ctx_discover, ctx_strict, ctx_peg_rev ) do |ch_paths, rev, author, date, message|
+                        mesg = "[%s] %s" % [rev, message]
+                        mesg = mesg.width_format(72).map do |line|
+                                "    " + line
+                        end
+                        mesg[0][2] = "*"
+                        puts mesg
+                end
+        end
+
+        def self.run!
+                svn2dch = Svn2Dch.new
+                begin
+                        svn2dch.parse_command_line ARGV
+                        svn2dch.validate!
+                        svn2dch.print
+
+                rescue OptionParser::ParseError => e
+
+                end
+        end
+end
+
+Svn2Dch.run!
