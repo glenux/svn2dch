@@ -1,15 +1,16 @@
 Source: svn2dch
-Section: unknown
+Section: devel
 Priority: extra
-Maintainer: Glenn Y. Rolland <glenn.rolland@bewan.com>
+Maintainer: Glenn Y. Rolland <glenn.rolland@gnuside.com>
 Build-Depends: debhelper (>= 7.0.50~)
 Standards-Version: 3.9.1
-Homepage: <insert the upstream URL, if relevant>
-#Vcs-Git: git://git.debian.org/collab-maint/svn2dch.git
+Homepage: https://github.com/glenux/svn2dch
+Vcs-Git: git://github.com/glenux/svn2dch.git
 #Vcs-Browser: http://git.debian.org/?p=collab-maint/svn2dch.git;a=summary
 
 Package: svn2dch
-Architecture: any
+Architecture: all
 Depends: ${shlibs:Depends}, ${misc:Depends}
-Description: <insert up to 60 chars description>
- <insert long description, indented with spaces>
+Description: Generate debian-style changelog from repository history
+ Takes a subversion working copy and generates a debian-compatible changelog
+ based on repository history.
