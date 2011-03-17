@@ -46,112 +46,135 @@ class String
 end
 
 class Svn2Dch
-		class ValidationError < RuntimeError ; end
+	class ValidationError < RuntimeError ; end
 
-        attr_reader :opts
-        # Constructor
-        # -- set defaults
-        def initialize
-                @opts = nil
-                @revisions = "BASE:HEAD"
-                @rev_start = nil
-                @rev_stop = nil
-                @verbose = false
-                @directory = nil
-        end
+	ACTION_HELP = :help
+	ACTION_LOG = :log
 
-        # Parse command line parameters
-        def parse_command_line args
-                @opts = OptionParser.new do |opts|
-                        opts.banner = "Usage: #{$0} [options]"
-                        opts.separator ""
-                        opts.separator "Options"
+	attr_reader :opts
+	# Constructor
+	# -- set defaults
+	def initialize
+		@opts = nil
+		@revisions = "BASE:HEAD"
+		@rev_start = nil
+		@rev_stop = nil
+		@verbose = false
+		@directory = nil
+		@help = false
+		@action = ACTION_LOG
+		@action_error = nil
+	end
 
-                        opts.on("-v", "--[no-]verbose", "Run verbosely") do |v|
-                                @verbose = v
-                        end
+	# Parse command line parameters
+	def parse_command_line args
+		@opts = OptionParser.new do |opts|
+			opts.banner = "Usage: #{$0} [options] [directory]"
+			opts.separator ""
+			opts.separator "Options"
 
-                        opts.on("-r", "--rev REVS", "Revision range") do |r|
-                                @revisions = r
-                        end
+			opts.on("-v", "--[no-]verbose", "Run verbosely") do |v|
+				@verbose = v
+			end
 
-                        opts.on("-h", "--help", "Show this help") do |h|
-                                @help = h
-                        end
+			opts.on("-r", "--rev REVS", "Revision range") do |r|
+				@revisions = r
+			end
 
-                        opts.separator ""
-                end
-				@opts.parse!
+			opts.on("-h", "--help", "Show this help") do |h|
+				@action = ACTION_HELP
+			end
 
-                @directory = args[0] || '.'
-        end
+			opts.separator ""
+		end
 
-        def validate!
-                @rev_start, @rev_stop = @revisions.split(/:/)
-                @rev_start = if @rev_start.to_i > 0 then @rev_start.to_i
-                                         else @rev_start
-                                         end
+		begin
+			@opts.parse!
+		rescue OptionParser::ParseError => e
+			@action = ACTION_HELP
+			@action_error = e
+		end
 
-                @rev_stop = if @rev_stop.to_i > 0 then @rev_stop.to_i
-                                        else @rev_stop
-                                        end
+		@directory = args[0] || '.'
 
-                @directory = File.expand_path @directory
-				if not ( (File.exist? @directory + "/.svn") and
-						(File.directory? @directory + "/.svn" )) then
-						raise ValidationError, "Directory %s is not a working copy !" % @directory
-				end
-        end
+	end
 
-        def print
-                STDERR.puts "Directory : %s" % @directory
-                STDERR.puts "Revisions : %s - %s" % [@rev_start, @rev_stop]
+	def validate!
+		@rev_start, @rev_stop = @revisions.split(/:/)
+		@rev_start = if @rev_start.to_i > 0 then @rev_start.to_i
+					 else @rev_start
+					 end
 
-                ctx = ::Svn::Client::Context.new
-                ctx.add_simple_provider
-                ctx.auth_baton[::Svn::Core::AUTH_PARAM_CONFIG_DIR] = "#{ENV['HOME']}/.subversion"
+		@rev_stop = if @rev_stop.to_i > 0 then @rev_stop.to_i
+					else @rev_stop
+					end
 
-                ctx_limit = 0
-                ctx_discover = false
-                ctx_strict = true
-                ctx_peg_rev = 0
+		@directory = File.expand_path @directory
+		if not ( (File.exist? @directory + "/.svn") and
+				(File.directory? @directory + "/.svn" )) then
+				raise ValidationError, "Directory %s is not a working copy !" % @directory
+		end
 
-                ctx.log(@directory, @rev_start, @rev_stop, ctx_limit, ctx_discover, ctx_strict, ctx_peg_rev ) do |ch_paths, rev, author, date, message|
-                        mesg = "[%s] %s" % [rev, message]
-                        mesg = mesg.width_format(72).map do |line|
-                                "    " + line
-                        end
-                        mesg[0][2] = "*"
-                        puts mesg
-                end
-        end
+	end
 
-        def self.run!
-                svn2dch = Svn2Dch.new
-                begin
-                        svn2dch.parse_command_line ARGV
-                        svn2dch.validate!
-                        svn2dch.print
+	def run_log
+		STDERR.puts "Directory : %s" % @directory
+		STDERR.puts "Revisions : %s - %s" % [@rev_start, @rev_stop]
 
-				rescue SystemExit
-					exit 0
+		ctx = ::Svn::Client::Context.new
+		ctx.add_simple_provider
+		ctx.auth_baton[::Svn::Core::AUTH_PARAM_CONFIG_DIR] = "#{ENV['HOME']}/.subversion"
 
-                rescue OptionParser::ParseError => e
-					puts svn2dch.opts
-					STDERR.puts "error: %s" % e.message
-					exit 1
+		ctx_limit = 0
+		ctx_discover = false
+		ctx_strict = true
+		ctx_peg_rev = 0
 
-				rescue ValidationError => e
-					STDERR.puts "error: %s" % e.message
-					exit 1
+		ctx.log(@directory, @rev_start, @rev_stop, ctx_limit, ctx_discover, ctx_strict, ctx_peg_rev ) do |ch_paths, rev, author, date, message|
+			mesg = "[%s] %s" % [rev, message]
+			mesg = mesg.width_format(72).map do |line|
+				"    " + line
+			end
+			mesg[0][2] = "*"
+			puts mesg
+		end
+	end
 
-				rescue Exception => e
-					STDERR.puts "error: %s" % e.message
-					STDERR.puts e.backtrace
-					exit 1
+	def run
+		self.parse_command_line ARGV
 
-                end
-        end
+		case @action
+		when ACTION_HELP
+			puts @opts
+			raise @action_error unless @action_error.nil?
+
+		when ACTION_LOG
+			self.validate!
+			self.run_log
+			
+		end
+		exit 0
+	end
+
+	def self.main
+		svn2dch = Svn2Dch.new
+		begin
+			svn2dch.run
+
+		rescue SystemExit => e
+			raise e
+
+		rescue ValidationError, OptionParser::ParseError => e
+			STDERR.puts "error: %s" % e.message
+			exit 1
+
+		rescue Exception => e
+			STDERR.puts "error: %s" % e.message
+			STDERR.puts e.backtrace
+			exit 1
+
+		end
+	end
 end
 
-Svn2Dch.run!
+Svn2Dch.main
