@@ -1,0 +1,4 @@
+debian/files
+debian/svn2dch.debhelper.log
+debian/svn2dch.substvars
+debian/svn2dch
