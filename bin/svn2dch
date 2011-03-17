@@ -8,8 +8,8 @@ require 'rubygems' if RUBY_VERSION < '1.9'
 #                                                                                                                       
 # Text-wrapping method for the String class.                                                                            
 #                                                                                                                       
-# Author:: ROLLAND, Glenn <glenn.rolland@bewan.com>                                                                     
-#                                                                                                                       
+# Author:: ROLLAND, Glenn <glenn.rolland@gnuside.com>
+#
 class String
 
 	# Format current string to width columns.                                                                           
